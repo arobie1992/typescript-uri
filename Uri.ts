@@ -20,7 +20,7 @@ class Uri {
 
     readonly pathSegments: ReadonlyArray<string> = [];
 
-    readonly queryParameters: ReadonlyMap<string, ReadonlyArray<string>> = new Map();
+    readonly queryParameters: ReadonlyMap<string, ReadonlyArray<string|null>> = new Map();
 
     constructor(uri: string) {
         this.uri = uri;
@@ -35,11 +35,11 @@ class Uri {
         if(!matches) {
             throw Error("Invalid URI"); 
         }
-        (this as Writeable).scheme = matches[2];
-        (this as Writeable).authority = matches[4];
-        (this as Writeable).path = matches[5];
-        (this as Writeable).query = matches[7];
-        (this as Writeable).fragment = matches[9];
+        (this as Writeable).scheme = matches[2] ?? null;
+        (this as Writeable).authority = matches[4] ?? null;
+        (this as Writeable).path = matches[5] ?? null;
+        (this as Writeable).query = matches[7] ?? null;
+        (this as Writeable).fragment = matches[9] ?? null;
     }
 
     private parseAuthority() {
@@ -59,7 +59,7 @@ class Uri {
             if(!match) {
                 return [null, null];
             }
-            return [match[1], match[2]];
+            return [match[1] ?? null, match[2] ?? null];
         };
         [(this as Writeable).user, (this as Writeable).password] = parseAuthSeg(match[1]);
         [(this as Writeable).host, (this as Writeable).port] = parseAuthSeg(match[2]);
@@ -78,11 +78,11 @@ class Uri {
         }
 
         const addQueryParam = (key: string | null, start: number, end: number) => {
-            let mutQps = this.queryParameters as Map<string, string[]>;
+            let mutQps = this.queryParameters as Map<string, Array<string|null>>;
             let value;
             if(key == null) {
                 key = this.query!!.substring(start, end);
-                value = "";
+                value = null;
             } else {
                 value = this.query!!.substring(start, end);
             }
