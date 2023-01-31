@@ -1,15 +1,13 @@
 type Writeable = { -readonly [P in keyof Uri]: Uri[P] };
 
-class Uri {   
+class Uri {
     private static URL_REGEX = /^(([^:/?#]+):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-    private static AUTH_REGEX = /^(?:([^@]*)@)?(.*)$/;
-    private static AUTH_SEG_REGEX = /^([^:]*)(?:\:(.*))?$/;
 
     readonly uri: string;
 
     readonly scheme: string | null = null;
     readonly authority: string | null = null;
-    readonly path: string | null = null;
+    readonly path: string = "";
     readonly query: string | null = null;
     readonly fragment: string | null = null;
 
@@ -46,23 +44,49 @@ class Uri {
         if(!this.authority) {
             return;
         }
-        const match = this.authority.match(Uri.AUTH_REGEX);
-        if(!match) {
-            return;
-        }
 
-        const parseAuthSeg = (seg: string): [string|null, string|null] => {
-            if(!seg) {
-                return [null, null];
+        enum State { HOST, PORT }
+        const falsy2Null = (str: string) => str ? str : null;
+        for(let start = 0, cur = 0, state = State.HOST, usepassSet = false;; cur++) {
+            if(cur == this.authority.length) {
+                let str = this.authority.substring(start, cur);
+                if(state == State.HOST) {
+                    (this as Writeable).host = falsy2Null(str);
+                } else {
+                    (this as Writeable).port = falsy2Null(str);
+                }
+                break;
             }
-            const match = seg.match(Uri.AUTH_SEG_REGEX);
-            if(!match) {
-                return [null, null];
+            switch(this.authority.charAt(cur)) {
+                case ':':
+                    if(state == State.HOST) {
+                        (this as Writeable).host = falsy2Null(this.authority.substring(start, cur));
+                        state = State.PORT;
+                        start = cur + 1;
+                    }
+                    // else it's a part of the potentially invalid port
+                    break;
+                case '@':
+                    if(!usepassSet) {
+                        // turns out we've actually been parsing user and/or password
+                        usepassSet = true;
+                        if(state == State.PORT) {
+                            // we've seen a colon which caused us to think we were on port but were actually on password
+                            (this as Writeable).user = this.host;
+                            (this as Writeable).host = null;
+                            (this as Writeable).password = falsy2Null(this.authority.substring(start, cur));
+                        } else {
+                            // we're still on host, but is actually the user
+                            (this as Writeable).user = falsy2Null(this.authority.substring(start, cur));
+                        }
+                        state = State.HOST;
+                        start = cur + 1;
+                    }
+                    // else it's part of the possibly invalid host name or port
+                    break;
+                // else no special behavior
             }
-            return [match[1] ?? null, match[2] ?? null];
-        };
-        [(this as Writeable).user, (this as Writeable).password] = parseAuthSeg(match[1]);
-        [(this as Writeable).host, (this as Writeable).port] = parseAuthSeg(match[2]);
+        }
     }
 
     private parsePath() {
